@@ -1,6 +1,12 @@
-# Prompt for the password for the 7z file (masked input)
-$securePassword = Read-Host -Prompt "Enter the password for the 7z archive" -AsSecureString
-$archivePassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword))
+param (
+    [string]$Password = $null # Accepts the password as a parameter
+)
+
+if (-not $Password) {
+    # Prompt for the password if not provided via the command line
+    $securePassword = Read-Host -Prompt "Enter the password for the 7z archive" -AsSecureString
+    $Password = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword))
+}
 
 # Temporary paths
 $tempFolder = [System.IO.Path]::Combine($env:TEMP, "temp_folder")
@@ -31,7 +37,7 @@ Invoke-RestMethod -Uri $sevenZipExeUrl -OutFile $temp7zr
 
 # Step 3: Extract the 7z archive using 7zr.exe and the provided password
 Write-Host "Extracting the 7z archive..."
-Start-Process -FilePath $temp7zr -ArgumentList "x `"$tempArchive`" -p$archivePassword -o`"$tempFolder`" -y" -NoNewWindow -Wait
+Start-Process -FilePath $temp7zr -ArgumentList "x `"$tempArchive`" -p$Password -o`"$tempFolder`" -y" -NoNewWindow -Wait
 
 # Step 4: Check if the executable exists and run it
 if (Test-Path -Path $extractedFile) {
