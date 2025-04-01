@@ -11,13 +11,46 @@ function Show-Menu {
 }
 
 Show-Menu
+Write-Host "Press the corresponding key"
 while ($true) {
-    Write-Host "Press the corresponding key"
     $choice = [console]::ReadKey($true).KeyChar
 
     switch ($choice) {
         "1" {
             Write-Host "Running Sarpili Script..."
+            
+            # Check if Chocolatey is installed
+            if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+                Write-Host "Chocolatey is not installed. Installing Chocolatey..."
+                
+                # Install Chocolatey and update environment variables
+                & ([Diagnostics.Process]::GetCurrentProcess().ProcessName) -NoP -c (
+                    [String]::Join(' ', (
+                        'Start-Process', [Diagnostics.Process]::GetCurrentProcess().ProcessName,
+                        '-UseNewEnvironment -NoNewWindow -Wait -Args ''-c'',',
+                        '''Get-ChildItem env: | &{process{ $_.Key + [char]9 + $_.Value }}'''
+                    ))
+                ) | &{process{
+                    [Environment]::SetEnvironmentVariable(
+                        $_.Split("`t")[0], # Key
+                        $_.Split("`t")[1], # Value
+                        'Process'          # Scope
+                    )
+                }}
+                
+                Set-ExecutionPolicy Bypass -Scope Process -Force
+                [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+                iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+                # Verify Chocolatey installation
+                if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+                    Write-Host "Failed to install Chocolatey. Exiting..."
+                    exit
+                }
+                Write-Host "Chocolatey installed successfully."
+            }
+
+            # Run Sarpili Script
             powershell -command "& ([ScriptBlock]::Create((irm https://raw.githubusercontent.com/voidelixir/py/main/app.ps1))) -App 'sarpili'"
             Pause
             Show-Menu
@@ -39,7 +72,7 @@ while ($true) {
             exit
         }
         default {
-            Write-Host "Invalid choice. Please try again."
+            # Do nothing for invalid choice
         }
     }
 }
