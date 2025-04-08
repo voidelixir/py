@@ -4,6 +4,7 @@ Clear-Host
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
     Write-Host "Restarting the script as Administrator..."
     Start-Process -FilePath "powershell.exe" -ArgumentList @(
+        "-NoExit", # Keep the PowerShell window open
         "-NoProfile",
         "-ExecutionPolicy Bypass",
         "-File", "`"$PSCommandPath`""
