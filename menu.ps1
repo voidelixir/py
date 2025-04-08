@@ -1,13 +1,8 @@
 Clear-Host
 
-# Check if the script is run as administrator
+# Ensure the script is run as administrator
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    [System.Windows.Forms.MessageBox]::Show(
-        "This script must be run as Administrator. Please restart it with elevated privileges.",
-        "Administrator Privileges Required",
-        [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Warning
-    )
+    Write-Host "This script must be run as Administrator. Exiting..."
     exit
 }
 
