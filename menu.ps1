@@ -1,13 +1,19 @@
 Clear-Host
 
 # Relaunch script as admin if not already
-if (-not ([Security.Principal.WindowsPrincipal] `
-    [Security.Principal.WindowsIdentity]::GetCurrent() `
-).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
+param(
+    [switch]$elevated
+)
 
-    $cmd = "cmd /c start `"ElevatedMenu`" powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    Start-Process "cmd.exe" -ArgumentList "/c $cmd" -Verb RunAs
-    exit
+if (-not $elevated) {
+    if (-not ([Security.Principal.WindowsPrincipal] `
+        [Security.Principal.WindowsIdentity]::GetCurrent() `
+    ).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
+
+        $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -elevated"
+        Start-Process powershell -ArgumentList $args -Verb RunAs
+        exit
+    }
 }
 
 # Disable progress bars globally
