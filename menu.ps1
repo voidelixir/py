@@ -1,5 +1,12 @@
 Clear-Host
 
+# Ensure the script is run as administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "Restarting the script as Administrator..."
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
+
 # Disable progress bars globally
 $ProgressPreference = 'SilentlyContinue'
 
@@ -42,8 +49,18 @@ function Invoke-App {
     if ($AppName -eq 'sarpili') {
         # Check if Chocolatey is installed
         if (-Not (Get-Command choco -ErrorAction SilentlyContinue)) {
-            Write-Host "Chocolatey is not installed. Installing Chocolatey..."
+            Write-Host "Chocolatey is not installed. Checking for existing folder..."
 
+            # Check if the folder exists and is empty
+            $chocoFolder = "C:\ProgramData\Chocolatey"
+            if (Test-Path -Path $chocoFolder) {
+                if (-Not (Get-ChildItem -Path $chocoFolder -Recurse -ErrorAction SilentlyContinue)) {
+                    Write-Host "Chocolatey folder exists but is empty. Deleting folder..."
+                    Remove-Item -Path $chocoFolder -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+
+            Write-Host "Installing Chocolatey..."
             # Install Chocolatey
             Set-ExecutionPolicy Bypass -Scope Process -Force
             Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
