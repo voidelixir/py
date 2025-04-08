@@ -1,19 +1,14 @@
 Clear-Host
 
-# Relaunch script as admin if not already
-param(
-    [switch]$elevated
-)
-
-if (-not $elevated) {
-    if (-not ([Security.Principal.WindowsPrincipal] `
-        [Security.Principal.WindowsIdentity]::GetCurrent() `
-    ).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
-
-        $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -elevated"
-        Start-Process powershell -ArgumentList $args -Verb RunAs
-        exit
-    }
+# Check if the script is run as administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    [System.Windows.Forms.MessageBox]::Show(
+        "This script must be run as Administrator. Please restart it with elevated privileges.",
+        "Administrator Privileges Required",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Warning
+    )
+    exit
 }
 
 # Disable progress bars globally
