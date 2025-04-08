@@ -5,14 +5,8 @@ if (-not ([Security.Principal.WindowsPrincipal] `
     [Security.Principal.WindowsIdentity]::GetCurrent() `
 ).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
 
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "powershell.exe"
-    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    $psi.Verb = "runas"
-    $psi.UseShellExecute = $true
-    $psi.WindowStyle = "Normal"
-
-    [System.Diagnostics.Process]::Start($psi) | Out-Null
+    $cmd = "cmd /c start `"ElevatedMenu`" powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    Start-Process "cmd.exe" -ArgumentList "/c $cmd" -Verb RunAs
     exit
 }
 
