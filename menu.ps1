@@ -1,14 +1,18 @@
 Clear-Host
 
-# Ensure the script is run as administrator
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Restarting the script as Administrator..."
-    Start-Process -FilePath "powershell.exe" -ArgumentList @(
-        "-NoExit", # Keep the PowerShell window open
-        "-NoProfile",
-        "-ExecutionPolicy Bypass",
-        "-File", "`"$PSCommandPath`""
-    ) -Verb RunAs
+# Relaunch script as admin if not already
+if (-not ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent() `
+).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell.exe"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $psi.Verb = "runas"
+    $psi.UseShellExecute = $true
+    $psi.WindowStyle = "Normal"
+
+    [System.Diagnostics.Process]::Start($psi) | Out-Null
     exit
 }
 
