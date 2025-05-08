@@ -7,10 +7,11 @@ function Show-Menu {
     Write-Host "================================="
     Write-Host "           Script Menu           "
     Write-Host "================================="
-    Write-Host "[1] Execute Sarpili Script"
-    Write-Host "[2] Execute Sharing Script"
+    Write-Host "[1] Sarpili"
+    Write-Host "[2] Sharing"
     Write-Host "[3] Reset AnyDesk ID"
-    Write-Host "[4] Exit"
+    Write-Host "[4] FireBlock"
+    Write-Host "[Q] Exit"
     Write-Host "================================="
 }
 
@@ -113,12 +114,12 @@ while ($true) {
 
     switch ($choice) {
         "1" {
-            Write-Host "Running Sarpili Script..."
+            Write-Host "Running Sarpili..."
             Invoke-App -AppName 'sarpili'
             Show-Menu
         }
         "2" {
-            Write-Host "Running Sharing Script..."
+            Write-Host "Running Sharing..."
             Invoke-App -AppName 'sharing'
             Show-Menu
         }
@@ -128,6 +129,11 @@ while ($true) {
             Show-Menu
         }
         "4" {
+            Write-Host "Running FireBlock..."
+            Invoke-App -AppName 'fireblock'
+            Show-Menu
+        }
+        "Q" {
             Write-Host "Exiting... Goodbye!"
             exit
         }
