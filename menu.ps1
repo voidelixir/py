@@ -11,6 +11,7 @@ function Show-Menu {
     Write-Host "[2] Sharing"
     Write-Host "[3] Reset AnyDesk ID"
     Write-Host "[4] FireBlock"
+	Write-Host "[5] ODU"
     Write-Host "[Q] Exit"
     Write-Host "================================="
 }
@@ -131,6 +132,11 @@ while ($true) {
         "4" {
             Write-Host "Running FireBlock..."
             Invoke-App -AppName 'fireblock'
+            Show-Menu
+        }
+        "5" {
+            Write-Host "Running ODU..."
+            Invoke-App -AppName 'odu'
             Show-Menu
         }
         "Q" {
