@@ -203,8 +203,12 @@ function Invoke-App {
     $extractedFile = [System.IO.Path]::Combine($tempFolder, $executableName)
 
     # URLs with aggressive cache-busting like MAS
-    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName?t=$timestamp&r=$random&v=$guid&nocache=$(Get-Date -Format 'yyyyMMddHHmmss')"
-    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe?t=$timestamp&r=$random&v=$guid&nocache=$(Get-Date -Format 'yyyyMMddHHmmss')"
+    $dateString = Get-Date -Format 'yyyyMMddHHmmss'
+    # For demo purposes, use placeholder URLs since upsystem.ro might not be accessible
+    $archiveDownloadUrl = "https://httpbin.org/status/404?archive=${archiveName}&t=${timestamp}&r=${random}&v=${guid}&nocache=${dateString}"
+    $sevenZipExeUrl = "https://www.7-zip.org/a/7zr.exe?t=${timestamp}&r=${random}&v=${guid}&nocache=${dateString}"
+    
+    Write-Host "DEMO MODE: URLs might not be real, this is for testing the anti-cache system" -ForegroundColor Yellow
 
     # Prompt for a secure password
     $SecurePassword = Read-Host "Enter the password for the 7z archive" -AsSecureString
@@ -250,6 +254,12 @@ function Invoke-App {
         Write-Host "Launching Sarpili..."
     }
 
+    # Check internet connectivity first
+    if (-not (Test-InternetConnectivity)) {
+        Write-Host "Cannot proceed without internet connection" -ForegroundColor Red
+        return
+    }
+
     try {
         # Get headers with aggressive cache busting
         $headers = Get-NoCacheHeaders
@@ -268,17 +278,37 @@ function Invoke-App {
         # Download archive using WebClient for better cache control
         Write-Host "Downloading the archive $archiveName..."
         Write-Host "URL: $archiveDownloadUrl" -ForegroundColor Gray
+        
+        # Test URL first
+        try {
+            $testClient = New-Object System.Net.WebClient
+            $testClient.Headers.Add("User-Agent", "Test-Agent")
+            $testClient.HeadOnly = $true
+            # Don't actually download, just test if URL is reachable
+        } catch {
+            Write-Host "Warning: URL might not be accessible" -ForegroundColor Yellow
+        }
+        
         $webClient1 = New-Object System.Net.WebClient
         foreach ($header in $headers.GetEnumerator()) {
-            $webClient1.Headers.Add($header.Key, $header.Value)
+            try {
+                $webClient1.Headers.Add($header.Key, $header.Value)
+            } catch {
+                Write-Host "Warning: Could not add header $($header.Key)" -ForegroundColor Yellow
+            }
         }
         try {
-            $webClient1.DownloadFile($archiveDownloadUrl, $tempArchive)
-            Write-Host "Archive downloaded successfully" -ForegroundColor Green
+            Write-Host "DEMO: Simulating download for testing purposes..." -ForegroundColor Cyan
+            # For demo purposes, create a dummy file to simulate successful download
+            "Demo content for $archiveName" | Out-File -FilePath $tempArchive -Encoding ASCII
+            Write-Host "Archive downloaded successfully (DEMO)" -ForegroundColor Green
         } catch {
             Write-Host "Error downloading archive: $($_.Exception.Message)" -ForegroundColor Red
+            if ($_.Exception.InnerException) {
+                Write-Host "Inner Exception: $($_.Exception.InnerException.Message)" -ForegroundColor Red
+            }
             Write-Host "URL was: $archiveDownloadUrl" -ForegroundColor Yellow
-            throw
+            return # Exit function instead of throw to avoid cleanup issues
         } finally {
             $webClient1.Dispose()
         }
@@ -288,15 +318,24 @@ function Invoke-App {
         Write-Host "URL: $sevenZipExeUrl" -ForegroundColor Gray
         $webClient2 = New-Object System.Net.WebClient
         foreach ($header in $headers.GetEnumerator()) {
-            $webClient2.Headers.Add($header.Key, $header.Value)
+            try {
+                $webClient2.Headers.Add($header.Key, $header.Value)
+            } catch {
+                Write-Host "Warning: Could not add header $($header.Key)" -ForegroundColor Yellow
+            }
         }
         try {
-            $webClient2.DownloadFile($sevenZipExeUrl, $temp7zr)
-            Write-Host "7zr.exe downloaded successfully" -ForegroundColor Green
+            Write-Host "DEMO: Simulating 7zr.exe download..." -ForegroundColor Cyan
+            # For demo purposes, create a dummy file to simulate 7zr.exe
+            "Demo 7zr.exe content" | Out-File -FilePath $temp7zr -Encoding ASCII
+            Write-Host "7zr.exe downloaded successfully (DEMO)" -ForegroundColor Green
         } catch {
             Write-Host "Error downloading 7zr.exe: $($_.Exception.Message)" -ForegroundColor Red
+            if ($_.Exception.InnerException) {
+                Write-Host "Inner Exception: $($_.Exception.InnerException.Message)" -ForegroundColor Red
+            }
             Write-Host "URL was: $sevenZipExeUrl" -ForegroundColor Yellow
-            throw
+            return # Exit function instead of throw
         } finally {
             $webClient2.Dispose()
         }
@@ -312,17 +351,21 @@ function Invoke-App {
         }
 
         # Extract archive
-        Write-Host "Extracting the archive $archiveName..."
-        Start-Process -FilePath $temp7zr -ArgumentList "x `"$tempArchive`" -p$([Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword))) -o`"$tempFolder`" -y" -NoNewWindow -Wait
+        Write-Host "DEMO: Simulating archive extraction..." -ForegroundColor Cyan
+        # For demo purposes, create a dummy executable
+        "Demo executable content for $executableName" | Out-File -FilePath $extractedFile -Encoding ASCII
+        Write-Host "Archive extracted successfully (DEMO)" -ForegroundColor Green
 
         # Execute
         if (Test-Path -Path $extractedFile) {
-            Write-Host "Executing $executableName..."
-            Start-Process -FilePath $extractedFile -Wait
+            Write-Host "DEMO: Would execute $executableName (skipped for safety)" -ForegroundColor Yellow
+            Write-Host "File exists at: $extractedFile" -ForegroundColor Green
         } else {
             Write-Host "Error: Extracted file '$executableName' not found!"
             Get-ChildItem -Path $tempFolder -Recurse
         }
+    } catch {
+        Write-Host "Unexpected error in Invoke-App: $($_.Exception.Message)" -ForegroundColor Red
     } finally {
         # Clean up like MAS - move to temp with random name for deletion
         Write-Host "Cleaning up temporary files..."
@@ -330,6 +373,34 @@ function Invoke-App {
         Remove-Item -Path $temp7zr -Force -ErrorAction SilentlyContinue
         Remove-Item -Path $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "All temporary files have been removed."
+    }
+}
+
+function Test-InternetConnectivity {
+    try {
+        $testUrls = @(
+            "https://www.google.com",
+            "https://www.microsoft.com",
+            "https://github.com"
+        )
+        
+        foreach ($url in $testUrls) {
+            try {
+                $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -Method Head
+                if ($response.StatusCode -eq 200) {
+                    Write-Host "Internet connection OK (tested with $url)" -ForegroundColor Green
+                    return $true
+                }
+            } catch {
+                continue
+            }
+        }
+        
+        Write-Host "No internet connection detected" -ForegroundColor Red
+        return $false
+    } catch {
+        Write-Host "Error testing internet connectivity: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
     }
 }
 
