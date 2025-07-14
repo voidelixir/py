@@ -1,5 +1,16 @@
 Clear-Host
 
+# Force script reload - check if we're running fresh version
+$scriptPath = $MyInvocation.MyCommand.Path
+if ($scriptPath -and (Test-Path $scriptPath)) {
+    $scriptContent = Get-Content $scriptPath -Raw
+    if ($scriptContent -match "CommandNotFoundAction") {
+        Write-Host "ERROR: Old cached version detected. Please restart PowerShell completely!" -ForegroundColor Red
+        Read-Host "Press Enter to exit"
+        exit
+    }
+}
+
 # Aggressive cache purge and PowerShell optimization - must be early in script
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
@@ -7,6 +18,13 @@ Clear-Host
 # Disable PowerShell caching and optimizations (safely)
 $PSDefaultParameterValues.Clear()
 [System.Runtime.GCSettings]::LatencyMode = [System.Runtime.GCLatencyMode]::Interactive
+
+# Force PowerShell to clear any cached script blocks
+[System.Management.Automation.ScriptBlock]::ClearCache() 2>$null
+try { 
+    $ExecutionContext.InvokeCommand.ClearCache() 
+    [System.GC]::Collect()
+} catch { }
 
 # Import essential modules first to avoid issues
 Import-Module Microsoft.PowerShell.Utility -Force -ErrorAction SilentlyContinue
