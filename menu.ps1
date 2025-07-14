@@ -3,58 +3,136 @@
 
 Clear-Host
 
-# MAS-inspired cache prevention
+# MAS-inspired aggressive cache prevention
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+[System.Net.ServicePointManager]::CheckCertificateRevocationList = $false
+[System.Net.ServicePointManager]::MaxServicePointIdleTime = 0
+[System.Net.ServicePointManager]::DefaultConnectionLimit = 20
+[System.Net.ServicePointManager]::EnableDnsRoundRobin = $true
+[System.Net.ServicePointManager]::UseNagleAlgorithm = $false
+
+# Force aggressive connection cleanup at startup
+try {
+    # Clear all existing service points like MAS strategy
+    $commonUris = @(
+        "https://raw.githubusercontent.com",
+        "https://github.com", 
+        "https://upsystem.ro",
+        "https://7-zip.org"
+    )
+    
+    foreach ($uri in $commonUris) {
+        try {
+            [System.Net.ServicePointManager]::FindServicePoint([System.Uri]$uri).CloseConnectionGroup("")
+        } catch {
+            # Ignore individual cleanup errors
+        }
+    }
+    
+    # Alternative DNS flush using cmd instead of direct ipconfig
+    try {
+        cmd /c "ipconfig /flushdns" *>$null
+    } catch {
+        # Ignore DNS flush errors
+    }
+} catch {
+    # Ignore cleanup errors
+}
 
 # Disable progress bars
 $ProgressPreference = 'SilentlyContinue'
 
-# Generate cache-busting parameter like MAS
-$CacheBuster = [System.Guid]::NewGuid().ToString("N")
-
-# Check version against GitHub
-function Check-ScriptVersion {
+# Check version against GitHub with enhanced error handling
+function Test-ScriptVersion {
     try {
         Write-Host "Verificare versiune..." -ForegroundColor Cyan
         
-        # Get local script content and calculate simple hash
-        $localContent = Get-Content $MyInvocation.MyCommand.Path -Raw
-        $localHash = $localContent.GetHashCode().ToString("X")
-        
-        # Get GitHub content and calculate simple hash
-        $headers = @{ 
-            'Cache-Control' = 'no-cache'
-            'User-Agent' = 'PowerShell-Script'
+        # Force DNS flush and ServicePoint cleanup like MAS
+        try {
+            [System.Net.ServicePointManager]::FindServicePoint([System.Uri]"https://raw.githubusercontent.com").CloseConnectionGroup("")
+        } catch {
+            # Ignore cleanup errors
         }
         
-        Write-Host "Conectare la GitHub..." -ForegroundColor Cyan
-        $githubContent = Invoke-RestMethod "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1" -Headers $headers -TimeoutSec 10
-        $githubHash = $githubContent.GetHashCode().ToString("X")
+        # Get local script content and calculate simple hash
+        $scriptPath = $MyInvocation.ScriptName
+        if (-not $scriptPath) {
+            $scriptPath = $PSCommandPath
+        }
         
-        # Compare versions
-        if ($localHash -eq $githubHash) {
-            Write-Host "Versiune fresh (Hash: $localHash)" -ForegroundColor Green
-        } else {
-            Write-Host "ATENTIE: Posibil cache detectat!" -ForegroundColor Red
-            Write-Host "Local: $localHash | GitHub: $githubHash" -ForegroundColor Yellow
+        if (-not $scriptPath -or -not (Test-Path $scriptPath)) {
+            Write-Host "Nu s-a putut determina calea scriptului" -ForegroundColor Yellow
+            return
+        }
+        
+        $localContent = Get-Content $scriptPath -Raw -ErrorAction Stop
+        $localHash = $localContent.GetHashCode().ToString("X")
+        
+        # Random delay to avoid timing cache hits
+        Start-Sleep -Milliseconds (Get-Random -Minimum 100 -Maximum 500)
+        
+        Write-Host "Conectare la GitHub..." -ForegroundColor Cyan
+        
+        # Force new connection with timestamp and multiple cache busters
+        $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $random = Get-Random -Minimum 100000 -Maximum 999999
+        $guid = [System.Guid]::NewGuid().ToString("N")
+        $url = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp&r=$random&nocache=$guid&v=$(Get-Date -Format 'yyyyMMddHHmmss')"
+        
+        # Use WebClient for more aggressive cache bypass like MAS
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+        $webClient.Headers.Add("Pragma", "no-cache")
+        $webClient.Headers.Add("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
+        $webClient.Headers.Add("User-Agent", "MAS-PS-$guid")
+        $webClient.Headers.Add("X-Requested-With", "XMLHttpRequest")
+        
+        try {
+            $githubContent = $webClient.DownloadString($url)
+            $githubHash = $githubContent.GetHashCode().ToString("X")
+            
+            # Compare versions
+            if ($localHash -eq $githubHash) {
+                Write-Host "Versiune fresh (Hash: $localHash)" -ForegroundColor Green
+            } else {
+                Write-Host "ATENTIE: Posibil cache detectat!" -ForegroundColor Red
+                Write-Host "Local: $localHash | GitHub: $githubHash" -ForegroundColor Yellow
+            }
+        } finally {
+            $webClient.Dispose()
         }
     } catch {
         Write-Host "Nu s-a putut verifica versiunea" -ForegroundColor Yellow
         Write-Host "Motiv: $($_.Exception.Message)" -ForegroundColor Gray
-        Write-Host "Hash local: $($localContent.GetHashCode().ToString('X'))" -ForegroundColor Gray
+        try {
+            if ($localContent) {
+                Write-Host "Hash local: $($localContent.GetHashCode().ToString('X'))" -ForegroundColor Gray
+            }
+        } catch {
+            Write-Host "Nu s-a putut calcula hash local" -ForegroundColor Gray
+        }
     }
     Write-Host ""
 }
 
 # Check version before showing menu
-Check-ScriptVersion
+Test-ScriptVersion
 
-# Simple no-cache headers
+# Simple no-cache headers with MAS-style aggressive cache busting
 function Get-NoCacheHeaders {
+    $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $random = Get-Random -Minimum 100000 -Maximum 999999
+    $guid = [System.Guid]::NewGuid().ToString("N")
+    
     return @{
-        'Cache-Control' = 'no-cache, no-store, must-revalidate'
+        'Cache-Control' = 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0'
         'Pragma' = 'no-cache'
-        'User-Agent' = "MAS-PowerShell-$([System.Guid]::NewGuid().ToString("N"))"
+        'Expires' = 'Thu, 01 Jan 1970 00:00:00 GMT'
+        'If-Modified-Since' = 'Mon, 26 Jul 1997 05:00:00 GMT'
+        'User-Agent' = "MAS-PowerShell-$guid"
+        'X-Requested-With' = 'XMLHttpRequest'
+        'X-Cache-Buster' = "$timestamp-$random-$guid"
+        'Connection' = 'close'
     }
 }
 
@@ -77,9 +155,10 @@ function Invoke-App {
         [string]$AppName
     )
 
-    # MAS-style random generation
+    # MAS-style random generation with enhanced randomness
     $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     $random = Get-Random -Minimum 100000 -Maximum 999999
+    $guid = [System.Guid]::NewGuid().ToString("N")
     
     # MAS-style random temp folder using GetRandomFileName approach
     $randomFileName = [System.IO.Path]::GetRandomFileName().Replace('.', '')
@@ -92,9 +171,9 @@ function Invoke-App {
     $executableName = "$AppName.exe"
     $extractedFile = [System.IO.Path]::Combine($tempFolder, $executableName)
 
-    # URLs with cache-busting like MAS
-    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName?t=$timestamp&r=$random"
-    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe?t=$timestamp&r=$random"
+    # URLs with aggressive cache-busting like MAS
+    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName?t=$timestamp&r=$random&v=$guid&nocache=$(Get-Date -Format 'yyyyMMddHHmmss')"
+    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe?t=$timestamp&r=$random&v=$guid&nocache=$(Get-Date -Format 'yyyyMMddHHmmss')"
 
     # Prompt for a secure password
     $SecurePassword = Read-Host "Enter the password for the 7z archive" -AsSecureString
@@ -141,16 +220,43 @@ function Invoke-App {
     }
 
     try {
-        # Get headers
+        # Get headers with aggressive cache busting
         $headers = Get-NoCacheHeaders
         
-        # Download archive
+        # Force connection cleanup like MAS before downloading
+        try {
+            [System.Net.ServicePointManager]::FindServicePoint([System.Uri]$archiveDownloadUrl).CloseConnectionGroup("")
+            [System.Net.ServicePointManager]::FindServicePoint([System.Uri]$sevenZipExeUrl).CloseConnectionGroup("")
+        } catch {
+            # Ignore cleanup errors
+        }
+        
+        # Random delay to avoid cache timing
+        Start-Sleep -Milliseconds (Get-Random -Minimum 50 -Maximum 200)
+        
+        # Download archive using WebClient for better cache control
         Write-Host "Downloading the archive $archiveName..."
-        Invoke-RestMethod -Uri $archiveDownloadUrl -OutFile $tempArchive -Headers $headers
+        $webClient1 = New-Object System.Net.WebClient
+        foreach ($header in $headers.GetEnumerator()) {
+            $webClient1.Headers.Add($header.Key, $header.Value)
+        }
+        try {
+            $webClient1.DownloadFile($archiveDownloadUrl, $tempArchive)
+        } finally {
+            $webClient1.Dispose()
+        }
 
-        # Download 7zr.exe
+        # Download 7zr.exe using WebClient for better cache control
         Write-Host "Downloading 7zr.exe..."
-        Invoke-RestMethod -Uri $sevenZipExeUrl -OutFile $temp7zr -Headers $headers
+        $webClient2 = New-Object System.Net.WebClient
+        foreach ($header in $headers.GetEnumerator()) {
+            $webClient2.Headers.Add($header.Key, $header.Value)
+        }
+        try {
+            $webClient2.DownloadFile($sevenZipExeUrl, $temp7zr)
+        } finally {
+            $webClient2.Dispose()
+        }
 
         # Extract archive
         Write-Host "Extracting the archive $archiveName..."
