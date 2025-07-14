@@ -4,13 +4,16 @@ Clear-Host
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
 
-# Disable PowerShell caching and optimizations
+# Disable PowerShell caching and optimizations (safely)
 $PSDefaultParameterValues.Clear()
-$ExecutionContext.InvokeCommand.CommandNotFoundAction = 'Continue'
 [System.Runtime.GCSettings]::LatencyMode = [System.Runtime.GCLatencyMode]::Interactive
 
-# Clear PowerShell module cache
-Get-Module | Remove-Module -Force -ErrorAction SilentlyContinue
+# Import essential modules first to avoid issues
+Import-Module Microsoft.PowerShell.Utility -Force -ErrorAction SilentlyContinue
+Import-Module Microsoft.PowerShell.Management -Force -ErrorAction SilentlyContinue
+
+# Clear DNS cache if possible
+try { Clear-DnsClientCache -ErrorAction SilentlyContinue } catch { }
 
 # Disable progress bars globally
 $ProgressPreference = 'SilentlyContinue'
@@ -21,13 +24,8 @@ $ProgressPreference = 'SilentlyContinue'
 [System.Net.ServicePointManager]::UseNagleAlgorithm = $false
 [System.Net.ServicePointManager]::CheckCertificateRevocationList = $false
 
-# Clear DNS cache if possible
-try { Clear-DnsClientCache -ErrorAction SilentlyContinue } catch { }
-
-# Force fresh execution context
+# Force fresh execution context (safely)
 $env:PSModulePath = $env:PSModulePath
-$PSVersionTable.Clear() 2>$null
-Remove-Variable * -ErrorAction SilentlyContinue -Exclude PWD,*Preference,PSVersionTable,ExecutionContext
 
 # Generate cache-busting parameter
 $CacheBuster = [System.Guid]::NewGuid().ToString("N")
@@ -70,8 +68,8 @@ function Invoke-App {
     [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
     [System.Runtime.GCSettings]::LatencyMode = [System.Runtime.GCLatencyMode]::Interactive
     
-    # Clear PowerShell command cache
-    $ExecutionContext.InvokeCommand.ClearCache()
+    # Clear PowerShell command cache (safely)
+    try { $ExecutionContext.InvokeCommand.ClearCache() } catch { }
     
     # Force new random temp folder to avoid file caching
     $randomId = [System.Guid]::NewGuid().ToString("N").Substring(0,8)
@@ -171,7 +169,7 @@ function Invoke-App {
         # Aggressive cache clearing after execution
         [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
         try { Clear-DnsClientCache -ErrorAction SilentlyContinue } catch { }
-        $ExecutionContext.InvokeCommand.ClearCache()
+        try { $ExecutionContext.InvokeCommand.ClearCache() } catch { }
     }
 }
 
