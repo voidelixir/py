@@ -54,21 +54,19 @@ function Test-ScriptVersion {
             # Ignore cleanup errors
         }
         
-        # Always do dual download test to detect cache regardless of execution method
-        Write-Host "Prima descarcare de test..." -ForegroundColor Cyan
+        # Always do dual download test to detect GitHub cache
+        Write-Host "Prima descarcare (raw.githubusercontent.com)..." -ForegroundColor Cyan
         
-        # First download with aggressive cache busters
+        # First download from main endpoint
         $timestamp1 = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         $random1 = Get-Random -Minimum 100000 -Maximum 999999
         $guid1 = [System.Guid]::NewGuid().ToString("N")
-        $url1 = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp1&r=$random1&nocache=$guid1&v=$(Get-Date -Format 'yyyyMMddHHmmss')"
+        $url1 = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp1&r=$random1&nocache=$guid1"
         
         $webClient1 = New-Object System.Net.WebClient
         $webClient1.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
         $webClient1.Headers.Add("Pragma", "no-cache")
-        $webClient1.Headers.Add("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
         $webClient1.Headers.Add("User-Agent", "MAS-PS-$guid1")
-        $webClient1.Headers.Add("X-Requested-With", "XMLHttpRequest")
         
         try {
             $content1 = $webClient1.DownloadString($url1)
@@ -78,23 +76,20 @@ function Test-ScriptVersion {
         }
         
         # Random delay between downloads
-        Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
+        Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1000)
         
-        Write-Host "A doua descarcare de test..." -ForegroundColor Cyan
+        Write-Host "A doua descarcare (github.com endpoint)..." -ForegroundColor Cyan
         
-        # Second download with completely different cache busters
+        # Second download from alternative GitHub endpoint
         $timestamp2 = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         $random2 = Get-Random -Minimum 100000 -Maximum 999999
         $guid2 = [System.Guid]::NewGuid().ToString("N")
-        $url2 = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp2&r=$random2&nocache=$guid2&v=$(Get-Date -Format 'yyyyMMddHHmmssff')&fresh=$guid2"
+        $url2 = "https://github.com/voidelixir/py/raw/refs/heads/main/menu.ps1?t=$timestamp2&r=$random2"
         
         $webClient2 = New-Object System.Net.WebClient
         $webClient2.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
         $webClient2.Headers.Add("Pragma", "no-cache")
-        $webClient2.Headers.Add("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
         $webClient2.Headers.Add("User-Agent", "MAS-PS-$guid2")
-        $webClient2.Headers.Add("X-Requested-With", "XMLHttpRequest")
-        $webClient2.Headers.Add("Cache-Buster", "$timestamp2-$random2")
         
         try {
             $content2 = $webClient2.DownloadString($url2)
@@ -105,11 +100,12 @@ function Test-ScriptVersion {
         
         # Compare the two downloads
         if ($hash1 -eq $hash2) {
-            Write-Host "Ambele descarcari identice - anti-cache functional (Hash: $hash1)" -ForegroundColor Green
+            Write-Host "Ambele endpoint-uri identice - GitHub consistent (Hash: $hash1)" -ForegroundColor Green
         } else {
-            Write-Host "ATENTIE: Cache detectat!" -ForegroundColor Red
-            Write-Host "Prima descarcare: $hash1" -ForegroundColor Yellow
-            Write-Host "A doua descarcare: $hash2" -ForegroundColor Yellow
+            Write-Host "ATENTIE: GitHub cache inconsistent!" -ForegroundColor Red
+            Write-Host "raw.githubusercontent.com: $hash1" -ForegroundColor Yellow
+            Write-Host "github.com/raw: $hash2" -ForegroundColor Yellow
+            Write-Host "Aceasta e problema cu cache-ul GitHub!" -ForegroundColor Red
         }
         
         # Also compare with local file if it exists
@@ -271,26 +267,48 @@ function Invoke-App {
         
         # Download archive using WebClient for better cache control
         Write-Host "Downloading the archive $archiveName..."
+        Write-Host "URL: $archiveDownloadUrl" -ForegroundColor Gray
         $webClient1 = New-Object System.Net.WebClient
         foreach ($header in $headers.GetEnumerator()) {
             $webClient1.Headers.Add($header.Key, $header.Value)
         }
         try {
             $webClient1.DownloadFile($archiveDownloadUrl, $tempArchive)
+            Write-Host "Archive downloaded successfully" -ForegroundColor Green
+        } catch {
+            Write-Host "Error downloading archive: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "URL was: $archiveDownloadUrl" -ForegroundColor Yellow
+            throw
         } finally {
             $webClient1.Dispose()
         }
 
         # Download 7zr.exe using WebClient for better cache control
         Write-Host "Downloading 7zr.exe..."
+        Write-Host "URL: $sevenZipExeUrl" -ForegroundColor Gray
         $webClient2 = New-Object System.Net.WebClient
         foreach ($header in $headers.GetEnumerator()) {
             $webClient2.Headers.Add($header.Key, $header.Value)
         }
         try {
             $webClient2.DownloadFile($sevenZipExeUrl, $temp7zr)
+            Write-Host "7zr.exe downloaded successfully" -ForegroundColor Green
+        } catch {
+            Write-Host "Error downloading 7zr.exe: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "URL was: $sevenZipExeUrl" -ForegroundColor Yellow
+            throw
         } finally {
             $webClient2.Dispose()
+        }
+
+        # Verify downloads
+        if (-not (Test-Path $tempArchive)) {
+            Write-Host "Error: Archive file was not downloaded!" -ForegroundColor Red
+            return
+        }
+        if (-not (Test-Path $temp7zr)) {
+            Write-Host "Error: 7zr.exe was not downloaded!" -ForegroundColor Red
+            return
         }
 
         # Extract archive
