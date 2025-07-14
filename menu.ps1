@@ -15,13 +15,20 @@ $CacheBuster = [System.Guid]::NewGuid().ToString("N")
 # Check version against GitHub
 function Check-ScriptVersion {
     try {
+        Write-Host "Verificare versiune..." -ForegroundColor Cyan
+        
         # Get local script content and calculate simple hash
         $localContent = Get-Content $MyInvocation.MyCommand.Path -Raw
         $localHash = $localContent.GetHashCode().ToString("X")
         
         # Get GitHub content and calculate simple hash
-        $headers = @{ 'Cache-Control' = 'no-cache' }
-        $githubContent = Invoke-RestMethod "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1" -Headers $headers
+        $headers = @{ 
+            'Cache-Control' = 'no-cache'
+            'User-Agent' = 'PowerShell-Script'
+        }
+        
+        Write-Host "Conectare la GitHub..." -ForegroundColor Cyan
+        $githubContent = Invoke-RestMethod "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1" -Headers $headers -TimeoutSec 10
         $githubHash = $githubContent.GetHashCode().ToString("X")
         
         # Compare versions
@@ -33,6 +40,8 @@ function Check-ScriptVersion {
         }
     } catch {
         Write-Host "Nu s-a putut verifica versiunea" -ForegroundColor Yellow
+        Write-Host "Motiv: $($_.Exception.Message)" -ForegroundColor Gray
+        Write-Host "Hash local: $($localContent.GetHashCode().ToString('X'))" -ForegroundColor Gray
     }
     Write-Host ""
 }
