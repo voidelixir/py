@@ -7,6 +7,7 @@ function Show-Menu {
     Write-Host "================================="
     Write-Host "           Script Menu           "
     Write-Host "================================="
+    Write-Host "[0] AIOTVA"	
     Write-Host "[1] Sarpili"
     Write-Host "[2] Sharing"
     Write-Host "[3] Reset AnyDesk ID"
@@ -30,7 +31,8 @@ function Invoke-App {
     $extractedFile = [System.IO.Path]::Combine($tempFolder, $executableName)
 
     # URLs
-    $archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/$archiveName"
+#   $archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/$archiveName"
+	$archiveDownloadUrl = "https://upsystem.ro/github/$archiveName"
     $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe"
 
     # Prompt for a secure password
@@ -114,6 +116,11 @@ while ($true) {
     $choice = [console]::ReadKey($true).KeyChar
 
     switch ($choice) {
+        "0" {
+            Write-Host "Running AIOTVA..."
+            Invoke-App -AppName 'aiotva'
+            Show-Menu
+        }
         "1" {
             Write-Host "Running Sarpili..."
             Invoke-App -AppName 'sarpili'
