@@ -1,60 +1,51 @@
+# Random header to avoid caching - MAS strategy
+# $([System.Guid]::NewGuid().ToString("N"))
+
 Clear-Host
 
-# Force script reload - check if we're running fresh version
-$scriptPath = $MyInvocation.MyCommand.Path
-if ($scriptPath -and (Test-Path $scriptPath)) {
-    $scriptContent = Get-Content $scriptPath -Raw
-    if ($scriptContent -match "CommandNotFoundAction") {
-        Write-Host "ERROR: Old cached version detected. Please restart PowerShell completely!" -ForegroundColor Red
-        Read-Host "Press Enter to exit"
-        exit
-    }
-}
-
-# Aggressive cache purge and PowerShell optimization - must be early in script
+# MAS-inspired cache prevention
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-[System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
 
-# Disable PowerShell caching and optimizations (safely)
-$PSDefaultParameterValues.Clear()
-[System.Runtime.GCSettings]::LatencyMode = [System.Runtime.GCLatencyMode]::Interactive
-
-# Force PowerShell to clear any cached script blocks
-[System.Management.Automation.ScriptBlock]::ClearCache() 2>$null
-try { 
-    $ExecutionContext.InvokeCommand.ClearCache() 
-    [System.GC]::Collect()
-} catch { }
-
-# Import essential modules first to avoid issues
-Import-Module Microsoft.PowerShell.Utility -Force -ErrorAction SilentlyContinue
-Import-Module Microsoft.PowerShell.Management -Force -ErrorAction SilentlyContinue
-
-# Clear DNS cache if possible
-try { Clear-DnsClientCache -ErrorAction SilentlyContinue } catch { }
-
-# Disable progress bars globally
+# Disable progress bars
 $ProgressPreference = 'SilentlyContinue'
 
-# Force disable web client caching
-[System.Net.ServicePointManager]::DefaultConnectionLimit = 999
-[System.Net.ServicePointManager]::Expect100Continue = $false
-[System.Net.ServicePointManager]::UseNagleAlgorithm = $false
-[System.Net.ServicePointManager]::CheckCertificateRevocationList = $false
-
-# Force fresh execution context (safely)
-$env:PSModulePath = $env:PSModulePath
-
-# Generate cache-busting parameter
+# Generate cache-busting parameter like MAS
 $CacheBuster = [System.Guid]::NewGuid().ToString("N")
 
-# Function to create no-cache headers
+# Check version against GitHub
+function Check-ScriptVersion {
+    try {
+        # Get local script content and calculate simple hash
+        $localContent = Get-Content $MyInvocation.MyCommand.Path -Raw
+        $localHash = $localContent.GetHashCode().ToString("X")
+        
+        # Get GitHub content and calculate simple hash
+        $headers = @{ 'Cache-Control' = 'no-cache' }
+        $githubContent = Invoke-RestMethod "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1" -Headers $headers
+        $githubHash = $githubContent.GetHashCode().ToString("X")
+        
+        # Compare versions
+        if ($localHash -eq $githubHash) {
+            Write-Host "Versiune fresh (Hash: $localHash)" -ForegroundColor Green
+        } else {
+            Write-Host "ATENTIE: Posibil cache detectat!" -ForegroundColor Red
+            Write-Host "Local: $localHash | GitHub: $githubHash" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "Nu s-a putut verifica versiunea" -ForegroundColor Yellow
+    }
+    Write-Host ""
+}
+
+# Check version before showing menu
+Check-ScriptVersion
+
+# Simple no-cache headers
 function Get-NoCacheHeaders {
     return @{
         'Cache-Control' = 'no-cache, no-store, must-revalidate'
         'Pragma' = 'no-cache'
-        'Expires' = '0'
-        'User-Agent' = "PowerShell-CacheBuster-$CacheBuster"
+        'User-Agent' = "MAS-PowerShell-$([System.Guid]::NewGuid().ToString("N"))"
     }
 }
 
@@ -77,36 +68,24 @@ function Invoke-App {
         [string]$AppName
     )
 
-    # Regenerate cache-busting parameters for each invocation
-    $freshCacheBuster = [System.Guid]::NewGuid().ToString("N")
+    # MAS-style random generation
     $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    $random = Get-Random -Minimum 10000 -Maximum 99999
+    $random = Get-Random -Minimum 100000 -Maximum 999999
     
-    # Aggressive cache clearing for each invocation
-    [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
-    [System.Runtime.GCSettings]::LatencyMode = [System.Runtime.GCLatencyMode]::Interactive
+    # MAS-style random temp folder using GetRandomFileName approach
+    $randomFileName = [System.IO.Path]::GetRandomFileName().Replace('.', '')
+    $tempFolder = [System.IO.Path]::Combine($env:TEMP, "temp_$randomFileName")
     
-    # Clear PowerShell command cache (safely)
-    try { $ExecutionContext.InvokeCommand.ClearCache() } catch { }
-    
-    # Force new random temp folder to avoid file caching
-    $randomId = [System.Guid]::NewGuid().ToString("N").Substring(0,8)
-    $tempFolder = [System.IO.Path]::Combine($env:TEMP, "temp_folder_$randomId")
-    
-    # Clear DNS cache for fresh lookups
-    try { Clear-DnsClientCache -ErrorAction SilentlyContinue } catch { }
-
-    # Dynamically build the file names and paths based on the App name
+    # Dynamic file naming with random elements like MAS
     $archiveName = "$AppName.7z"
-    $tempArchive = [System.IO.Path]::Combine($env:TEMP, "$archiveName" + "_$randomId")
-    $temp7zr = [System.IO.Path]::Combine($tempFolder, "7zr_$randomId.exe")
+    $tempArchive = [System.IO.Path]::Combine($env:TEMP, "$archiveName" + "_$random")
+    $temp7zr = [System.IO.Path]::Combine($tempFolder, "7zr_$randomFileName.exe")
     $executableName = "$AppName.exe"
     $extractedFile = [System.IO.Path]::Combine($tempFolder, $executableName)
 
-    # URLs with cache-busting parameters
-#   $archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/$archiveName?t=$timestamp&r=$random&cb=$freshCacheBuster"
-    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName?t=$timestamp&r=$random&cb=$freshCacheBuster"
-    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe?t=$timestamp&r=$random&cb=$freshCacheBuster"
+    # URLs with cache-busting like MAS
+    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName?t=$timestamp&r=$random"
+    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe?t=$timestamp&r=$random"
 
     # Prompt for a secure password
     $SecurePassword = Read-Host "Enter the password for the 7z archive" -AsSecureString
@@ -153,22 +132,22 @@ function Invoke-App {
     }
 
     try {
-        # Get no-cache headers
+        # Get headers
         $headers = Get-NoCacheHeaders
         
-        # Step 1: Download the 7z archive
+        # Download archive
         Write-Host "Downloading the archive $archiveName..."
         Invoke-RestMethod -Uri $archiveDownloadUrl -OutFile $tempArchive -Headers $headers
 
-        # Step 2: Download 7zr.exe for extraction
+        # Download 7zr.exe
         Write-Host "Downloading 7zr.exe..."
         Invoke-RestMethod -Uri $sevenZipExeUrl -OutFile $temp7zr -Headers $headers
 
-        # Step 3: Extract the 7z archive
+        # Extract archive
         Write-Host "Extracting the archive $archiveName..."
         Start-Process -FilePath $temp7zr -ArgumentList "x `"$tempArchive`" -p$([Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword))) -o`"$tempFolder`" -y" -NoNewWindow -Wait
 
-        # Step 4: Check if the executable exists and run it
+        # Execute
         if (Test-Path -Path $extractedFile) {
             Write-Host "Executing $executableName..."
             Start-Process -FilePath $extractedFile -Wait
@@ -177,17 +156,12 @@ function Invoke-App {
             Get-ChildItem -Path $tempFolder -Recurse
         }
     } finally {
-        # Step 5: Clean up temporary files
+        # Clean up like MAS - move to temp with random name for deletion
         Write-Host "Cleaning up temporary files..."
         Remove-Item -Path $tempArchive -Force -ErrorAction SilentlyContinue
         Remove-Item -Path $temp7zr -Force -ErrorAction SilentlyContinue
         Remove-Item -Path $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "All temporary files have been removed."
-        
-        # Aggressive cache clearing after execution
-        [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()
-        try { Clear-DnsClientCache -ErrorAction SilentlyContinue } catch { }
-        try { $ExecutionContext.InvokeCommand.ClearCache() } catch { }
     }
 }
 
