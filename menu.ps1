@@ -54,63 +54,98 @@ function Test-ScriptVersion {
             # Ignore cleanup errors
         }
         
-        # Get local script content and calculate simple hash
-        $scriptPath = $MyInvocation.ScriptName
-        if (-not $scriptPath) {
-            $scriptPath = $PSCommandPath
-        }
+        # Always do dual download test to detect cache regardless of execution method
+        Write-Host "Prima descarcare de test..." -ForegroundColor Cyan
         
-        if (-not $scriptPath -or -not (Test-Path $scriptPath)) {
-            Write-Host "Nu s-a putut determina calea scriptului" -ForegroundColor Yellow
-            return
-        }
+        # First download with aggressive cache busters
+        $timestamp1 = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $random1 = Get-Random -Minimum 100000 -Maximum 999999
+        $guid1 = [System.Guid]::NewGuid().ToString("N")
+        $url1 = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp1&r=$random1&nocache=$guid1&v=$(Get-Date -Format 'yyyyMMddHHmmss')"
         
-        $localContent = Get-Content $scriptPath -Raw -ErrorAction Stop
-        $localHash = $localContent.GetHashCode().ToString("X")
-        
-        # Random delay to avoid timing cache hits
-        Start-Sleep -Milliseconds (Get-Random -Minimum 100 -Maximum 500)
-        
-        Write-Host "Conectare la GitHub..." -ForegroundColor Cyan
-        
-        # Force new connection with timestamp and multiple cache busters
-        $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-        $random = Get-Random -Minimum 100000 -Maximum 999999
-        $guid = [System.Guid]::NewGuid().ToString("N")
-        $url = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp&r=$random&nocache=$guid&v=$(Get-Date -Format 'yyyyMMddHHmmss')"
-        
-        # Use WebClient for more aggressive cache bypass like MAS
-        $webClient = New-Object System.Net.WebClient
-        $webClient.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
-        $webClient.Headers.Add("Pragma", "no-cache")
-        $webClient.Headers.Add("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
-        $webClient.Headers.Add("User-Agent", "MAS-PS-$guid")
-        $webClient.Headers.Add("X-Requested-With", "XMLHttpRequest")
+        $webClient1 = New-Object System.Net.WebClient
+        $webClient1.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+        $webClient1.Headers.Add("Pragma", "no-cache")
+        $webClient1.Headers.Add("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
+        $webClient1.Headers.Add("User-Agent", "MAS-PS-$guid1")
+        $webClient1.Headers.Add("X-Requested-With", "XMLHttpRequest")
         
         try {
-            $githubContent = $webClient.DownloadString($url)
-            $githubHash = $githubContent.GetHashCode().ToString("X")
-            
-            # Compare versions
-            if ($localHash -eq $githubHash) {
-                Write-Host "Versiune fresh (Hash: $localHash)" -ForegroundColor Green
-            } else {
-                Write-Host "ATENTIE: Posibil cache detectat!" -ForegroundColor Red
-                Write-Host "Local: $localHash | GitHub: $githubHash" -ForegroundColor Yellow
-            }
+            $content1 = $webClient1.DownloadString($url1)
+            $hash1 = $content1.GetHashCode().ToString("X")
         } finally {
-            $webClient.Dispose()
+            $webClient1.Dispose()
+        }
+        
+        # Random delay between downloads
+        Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
+        
+        Write-Host "A doua descarcare de test..." -ForegroundColor Cyan
+        
+        # Second download with completely different cache busters
+        $timestamp2 = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $random2 = Get-Random -Minimum 100000 -Maximum 999999
+        $guid2 = [System.Guid]::NewGuid().ToString("N")
+        $url2 = "https://raw.githubusercontent.com/voidelixir/py/refs/heads/main/menu.ps1?t=$timestamp2&r=$random2&nocache=$guid2&v=$(Get-Date -Format 'yyyyMMddHHmmssff')&fresh=$guid2"
+        
+        $webClient2 = New-Object System.Net.WebClient
+        $webClient2.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+        $webClient2.Headers.Add("Pragma", "no-cache")
+        $webClient2.Headers.Add("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
+        $webClient2.Headers.Add("User-Agent", "MAS-PS-$guid2")
+        $webClient2.Headers.Add("X-Requested-With", "XMLHttpRequest")
+        $webClient2.Headers.Add("Cache-Buster", "$timestamp2-$random2")
+        
+        try {
+            $content2 = $webClient2.DownloadString($url2)
+            $hash2 = $content2.GetHashCode().ToString("X")
+        } finally {
+            $webClient2.Dispose()
+        }
+        
+        # Compare the two downloads
+        if ($hash1 -eq $hash2) {
+            Write-Host "Ambele descarcari identice - anti-cache functional (Hash: $hash1)" -ForegroundColor Green
+        } else {
+            Write-Host "ATENTIE: Cache detectat!" -ForegroundColor Red
+            Write-Host "Prima descarcare: $hash1" -ForegroundColor Yellow
+            Write-Host "A doua descarcare: $hash2" -ForegroundColor Yellow
+        }
+        
+        # Also compare with local file if it exists
+        $scriptName = $MyInvocation.ScriptName
+        $commandPath = $PSCommandPath
+        $localPath = $null
+        
+        if ($scriptName) {
+            $localPath = $scriptName
+        } elseif ($commandPath) {
+            $localPath = $commandPath
+        } elseif (Test-Path "menu.ps1") {
+            $localPath = "menu.ps1"
+        }
+        
+        if ($localPath -and (Test-Path $localPath)) {
+            try {
+                $localContent = Get-Content $localPath -Raw -ErrorAction Stop
+                if ($localContent) {
+                    $localHash = $localContent.GetHashCode().ToString("X")
+                    if ($localHash -eq $hash1) {
+                        Write-Host "Fisier local identic cu GitHub" -ForegroundColor Green
+                    } else {
+                        Write-Host "Fisier local diferit de GitHub:" -ForegroundColor Yellow
+                        Write-Host "Local: $localHash | GitHub: $hash1" -ForegroundColor Yellow
+                    }
+                }
+            } catch {
+                Write-Host "Nu s-a putut citi fisierul local" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "Rulare din memorie (IEX) - nu exista fisier local" -ForegroundColor Cyan
         }
     } catch {
         Write-Host "Nu s-a putut verifica versiunea" -ForegroundColor Yellow
         Write-Host "Motiv: $($_.Exception.Message)" -ForegroundColor Gray
-        try {
-            if ($localContent) {
-                Write-Host "Hash local: $($localContent.GetHashCode().ToString('X'))" -ForegroundColor Gray
-            }
-        } catch {
-            Write-Host "Nu s-a putut calcula hash local" -ForegroundColor Gray
-        }
     }
     Write-Host ""
 }
