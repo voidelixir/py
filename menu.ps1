@@ -6,6 +6,24 @@ Clear-Host
 # Disable progress bars globally
 $ProgressPreference = 'SilentlyContinue'
 
+# Force disable web client caching
+[System.Net.ServicePointManager]::DefaultConnectionLimit = 999
+[System.Net.ServicePointManager]::Expect100Continue = $false
+[System.Net.ServicePointManager]::UseNagleAlgorithm = $false
+
+# Generate cache-busting parameter
+$CacheBuster = [System.Guid]::NewGuid().ToString("N")
+
+# Function to create no-cache headers
+function Get-NoCacheHeaders {
+    return @{
+        'Cache-Control' = 'no-cache, no-store, must-revalidate'
+        'Pragma' = 'no-cache'
+        'Expires' = '0'
+        'User-Agent' = "PowerShell-CacheBuster-$CacheBuster"
+    }
+}
+
 function Show-Menu {
     Write-Host "================================="
     Write-Host "           Script Menu           "
@@ -25,6 +43,16 @@ function Invoke-App {
         [string]$AppName
     )
 
+    # Regenerate cache-busting parameters for each invocation
+    $freshCacheBuster = [System.Guid]::NewGuid().ToString("N")
+    $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $random = Get-Random -Minimum 10000 -Maximum 99999
+    
+    # Force garbage collection to clear any cached data
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+    [System.GC]::Collect()
+
     # Dynamically build the file names and paths based on the App name
     $archiveName = "$AppName.7z"
     $tempFolder = [System.IO.Path]::Combine($env:TEMP, "temp_folder")
@@ -33,10 +61,10 @@ function Invoke-App {
     $executableName = "$AppName.exe"
     $extractedFile = [System.IO.Path]::Combine($tempFolder, $executableName)
 
-    # URLs
-#   $archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/$archiveName"
-    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName"
-    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe"
+    # URLs with cache-busting parameters
+#   $archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/$archiveName?t=$timestamp&r=$random&cb=$freshCacheBuster"
+    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName?t=$timestamp&r=$random&cb=$freshCacheBuster"
+    $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe?t=$timestamp&r=$random&cb=$freshCacheBuster"
 
     # Prompt for a secure password
     $SecurePassword = Read-Host "Enter the password for the 7z archive" -AsSecureString
@@ -83,13 +111,16 @@ function Invoke-App {
     }
 
     try {
+        # Get no-cache headers
+        $headers = Get-NoCacheHeaders
+        
         # Step 1: Download the 7z archive
         Write-Host "Downloading the archive $archiveName..."
-        Invoke-RestMethod -Uri $archiveDownloadUrl -OutFile $tempArchive
+        Invoke-RestMethod -Uri $archiveDownloadUrl -OutFile $tempArchive -Headers $headers
 
         # Step 2: Download 7zr.exe for extraction
         Write-Host "Downloading 7zr.exe..."
-        Invoke-RestMethod -Uri $sevenZipExeUrl -OutFile $temp7zr
+        Invoke-RestMethod -Uri $sevenZipExeUrl -OutFile $temp7zr -Headers $headers
 
         # Step 3: Extract the 7z archive
         Write-Host "Extracting the archive $archiveName..."
