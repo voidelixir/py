@@ -15,7 +15,7 @@ function Show-Menu {
     Write-Host "[2] Sharing"
     Write-Host "[3] Reset AnyDesk ID"
     Write-Host "[4] FireBlock"
-    Write-Host "[5] ODU"
+    Write-Host "[5] OEM Driver Uninstaller"
     Write-Host "[Q] Exit"
     Write-Host "================================="
 }
