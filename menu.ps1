@@ -1,5 +1,8 @@
 Clear-Host
 
+# Cache purge - must be early in script
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers()
+
 # Disable progress bars globally
 $ProgressPreference = 'SilentlyContinue'
 
@@ -12,7 +15,7 @@ function Show-Menu {
     Write-Host "[2] Sharing"
     Write-Host "[3] Reset AnyDesk ID"
     Write-Host "[4] FireBlock"
-	Write-Host "[5] ODU"
+    Write-Host "[5] ODU"
     Write-Host "[Q] Exit"
     Write-Host "================================="
 }
@@ -32,7 +35,7 @@ function Invoke-App {
 
     # URLs
 #   $archiveDownloadUrl = "https://raw.githubusercontent.com/voidelixir/py/main/$archiveName"
-	$archiveDownloadUrl = "https://upsystem.ro/github/$archiveName"
+    $archiveDownloadUrl = "https://upsystem.ro/github/$archiveName"
     $sevenZipExeUrl = "https://7-zip.org/a/7zr.exe"
 
     # Prompt for a secure password
